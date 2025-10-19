@@ -1,0 +1,6 @@
+.my-tree.ant-tree .ant-tree-list .ant-tree-treenode{
+    width: 100%;
+}
+.my-tree.ant-tree .ant-tree-list .ant-tree-treenode .ant-tree-node-content-wrapper {
+    flex: 1;
+}

@@ -19,43 +19,53 @@ import { PlusOutlined } from '@ant-design/icons';
 import type { DataNode, EventDataNode } from 'antd/es/tree';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
-import logo from './mocka_icon.svg'
+import logo from '~/assets/mocka_icon.svg'
+import { STORAGE_KEY, MOCK_ENABLED_KEY } from '../../utils'
 
 const { Title } = Typography;
 const { Search } = Input;
 const { TextArea } = Input;
 
-// 本地存储键名
-const STORAGE_KEY = 'mocka-tree-data';
-const MOCK_DATA_KEY = 'mocka-mock-data';
-const MOCK_ENABLED_KEY = 'mocka-enabled';
-const DISABLED_GROUPS_KEY = 'mocka-disabled-groups';
+
+
+// 树节点类型定义
+interface ApiNode extends DataNode {
+    children?: ApiNode[];
+    domain?: string;
+    disabled?: boolean;
+    mockData?: Record<string, any> // 接口用
+}
+
+
+// 默认 Mock 数据
+const defaultMockData: Record<string, any> = {
+ 
+    code: 0,
+    data: [
+        { id: 1, name: 'Alice', email: 'alice@example.com', role: 'admin' },
+        { id: 2, name: 'Bob', email: 'bob@example.com', role: 'user' },
+        { id: 3, name: 'Charlie', email: 'charlie@example.com', role: 'user' },
+    ],
+    msg: 'success',
+    timestamp: Date.now(),
+}
+        
+    
 
 // 默认树数据
-const defaultTreeData: DataNode[] = [
+const defaultTreeData: ApiNode[] = [
     {
         title: '默认分组',
         key: 'group:default',
+        domain: 'www.google.com',
         selectable: false,
+        disabled: true,
         children: [
-            { title: '/api/user/list', key: 'api:/api/user/list', isLeaf: true },
+            { title: '/api/user/list', key: 'api:group:default/api/user/list', isLeaf: true, mockData: defaultMockData },
         ],
     },
 ];
 
-// 默认 Mock 数据
-const defaultMockData: Record<string, unknown> = {
-    'api:/api/user/list': {
-        code: 0,
-        data: [
-            { id: 1, name: 'Alice', email: 'alice@example.com', role: 'admin' },
-            { id: 2, name: 'Bob', email: 'bob@example.com', role: 'user' },
-            { id: 3, name: 'Charlie', email: 'charlie@example.com', role: 'user' },
-        ],
-        msg: 'success',
-        timestamp: Date.now(),
-    }
-};
 
 // 本地存储工具函数
 const storage = {
@@ -76,10 +86,6 @@ const storage = {
     },
 };
 
-// 树节点类型定义
-interface ApiNode extends DataNode {
-    children?: ApiNode[];
-}
 
 // 编辑表单数据类型
 interface EditFormData {
@@ -88,6 +94,7 @@ interface EditFormData {
     url?: string;
     parentKey?: string;
     mockData?: string;
+    domain?: string;
 }
 
 export interface AppRef {
@@ -102,9 +109,6 @@ const App = forwardRef<AppRef>((_, ref) => {
     const [treeData, setTreeData] = useState<ApiNode[]>(() =>
         storage.get(STORAGE_KEY) || defaultTreeData
     );
-    const [mockData, setMockData] = useState<Record<string, unknown>>(() =>
-        storage.get(MOCK_DATA_KEY) || defaultMockData
-    );
     const [mockEnabled, setMockEnabled] = useState<boolean>(() => {
         const enabled = localStorage.getItem(MOCK_ENABLED_KEY);
         return enabled !== 'false'; // 默认启用
@@ -117,12 +121,18 @@ const App = forwardRef<AppRef>((_, ref) => {
     const [resetConfirmVisible, setResetConfirmVisible] = useState(false);
     const [deleteConfirmVisible, setDeleteConfirmVisible] = useState(false);
     const [deleteNodeKey, setDeleteNodeKey] = useState<string | null>(null);
-    const [disabledGroups, setDisabledGroups] = useState<Set<string>>(() => {
-        const saved = storage.get(DISABLED_GROUPS_KEY);
-        return saved ? new Set(saved) : new Set();
-    });
 
     const [form] = Form.useForm<EditFormData>();
+
+    const apiMap = useMemo(() => treeData.reduce((acc, next) => {
+            if (next.children) {
+                for (const api of next.children) {
+                    acc[api.key as string] = api.mockData
+                }
+            }
+            return acc
+        }, {} as Record<string ,any>)
+    , [treeData])
 
     useImperativeHandle(ref, () => ({
         toggleOpen: () => setOpen(prev => !prev),
@@ -132,14 +142,6 @@ const App = forwardRef<AppRef>((_, ref) => {
     useEffect(() => {
         storage.set(STORAGE_KEY, treeData);
     }, [treeData]);
-
-    useEffect(() => {
-        storage.set(MOCK_DATA_KEY, mockData);
-    }, [mockData]);
-
-    useEffect(() => {
-        storage.set(DISABLED_GROUPS_KEY, Array.from(disabledGroups));
-    }, [disabledGroups]);
 
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
@@ -175,12 +177,8 @@ const App = forwardRef<AppRef>((_, ref) => {
 
         return filterTree(treeData);
     }, [treeData, searchValue]);
-
     // JSON 内容
-    const jsonContent = useMemo(() => {
-        const data = selectedKey ? mockData[selectedKey] : null;
-        return data ? JSON.stringify(data, null, 2) : '// 请选择左侧接口查看 Mock 数据';
-    }, [selectedKey, mockData]);
+    const jsonContent = JSON.stringify(apiMap[selectedKey as string], null, 2)
 
     // 生成唯一 key
     const generateKey = (type: 'group' | 'api', title: string) => {
@@ -267,29 +265,24 @@ const App = forwardRef<AppRef>((_, ref) => {
                     key: generateKey('group', values.title),
                     selectable: false,
                     children: [],
+                    domain: values.domain
                 };
                 setTreeData(prev => addNodeToTree(prev, values.parentKey || null, newNode));
                 message.success('分组添加成功');
             } else if (editType === 'add-api') {
-                const apiKey = generateKey('api', values.url || values.title);
+                const apiKey = generateKey('api', (values.parentKey || '') +  (values.url || values.title));
                 const newNode: ApiNode = {
                     title: values.url || values.title,
                     key: apiKey,
                     isLeaf: true,
                 };
+                try {
+                    newNode.mockData = JSON.parse(values.mockData || '{ "code": 0, "data": {}, "msg": "success" }')
+                }catch {
+                    newNode.mockData = { code: 0, data: {}, msg: 'success' }
+                }
                 setTreeData(prev => addNodeToTree(prev, values.parentKey || null, newNode));
 
-                // 添加默认 mock 数据
-                if (values.mockData) {
-                    try {
-                        const parsedData = JSON.parse(values.mockData);
-                        setMockData(prev => ({ ...prev, [apiKey]: parsedData }));
-                    } catch {
-                        setMockData(prev => ({ ...prev, [apiKey]: { code: 0, data: {}, msg: 'success' } }));
-                    }
-                } else {
-                    setMockData(prev => ({ ...prev, [apiKey]: { code: 0, data: {}, msg: 'success' } }));
-                }
                 message.success('接口添加成功');
             } else if (editType === 'edit' && editingNode) {
                 setTreeData(prev => updateNodeInTree(prev, editingNode, { title: values.title }));
@@ -297,7 +290,7 @@ const App = forwardRef<AppRef>((_, ref) => {
                 if (values.mockData && editingNode.startsWith('api:')) {
                     try {
                         const parsedData = JSON.parse(values.mockData);
-                        setMockData(prev => ({ ...prev, [editingNode]: parsedData }));
+                         setTreeData(prev => updateNodeInTree(prev, editingNode, { mockData: parsedData }));
                     } catch (error) {
                         message.error('Mock 数据格式错误');
                         return;
@@ -316,25 +309,15 @@ const App = forwardRef<AppRef>((_, ref) => {
     }, [editType, editingNode, form, addNodeToTree, updateNodeInTree]);
 
     // 处理节点选择
-    const handleSelect = (_: React.Key[], info: { node: EventDataNode }) => {
+    const handleSelect = (_: React.Key[], info: { node: any }) => {
         if (info.node.isLeaf && typeof info.node.key === 'string') {
             setSelectedKey(info.node.key);
         }
     };
 
     // 切换分组状态
-    const toggleGroupEnabled = (groupKey: string) => {
-        setDisabledGroups(prev => {
-            const newSet = new Set(prev);
-            if (newSet.has(groupKey)) {
-                newSet.delete(groupKey);
-                message.success('分组已启用');
-            } else {
-                newSet.add(groupKey);
-                message.success('分组已禁用');
-            }
-            return newSet;
-        });
+    const toggleGroupEnabled = (value: boolean,node: ApiNode) => {
+        setTreeData(prev => updateNodeInTree(prev, node.key as string, { disabled: value }));
     };
 
     const handleBackgroundClick = (e: React.MouseEvent) => {
@@ -455,6 +438,7 @@ const App = forwardRef<AppRef>((_, ref) => {
                     {/* 树形结构 */}
                     <div style={{ flex: 1, overflow: 'auto' }}>
                         <Tree
+                            className='my-tree'
                             treeData={filteredTreeData}
                             defaultExpandAll
                             onSelect={handleSelect}
@@ -462,8 +446,6 @@ const App = forwardRef<AppRef>((_, ref) => {
                             style={{ fontSize: 14 }}
                             titleRender={(node) => {
                                 const isGroup = !node.isLeaf;
-                                const isDisabled = isGroup && disabledGroups.has(node.key as string);
-
                                 return (
                                     <div
                                         style={{
@@ -476,11 +458,11 @@ const App = forwardRef<AppRef>((_, ref) => {
                                     >
                                         <span
                                             style={{
-                                                opacity: isDisabled ? 0.5 : 1,
-                                                textDecoration: isDisabled ? 'line-through' : 'none'
+                                                opacity: node.disabled ? 0.5 : 1,
+                                                textDecoration: node.disabled ? 'line-through' : 'none'
                                             }}
                                         >
-                                            {node.title}
+                                            {node.title as string }{node.domain ? `(${node.domain})` : ''}
                                         </span>
                                         {isGroup && (
                                             <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -494,7 +476,7 @@ const App = forwardRef<AppRef>((_, ref) => {
                                                         setEditModalVisible(true);
                                                         form.setFieldsValue({
                                                             type: 'api',
-                                                            parentKey: node.key
+                                                            parentKey: node.key as string
                                                         });
                                                     }}
                                                     style={{
@@ -507,13 +489,13 @@ const App = forwardRef<AppRef>((_, ref) => {
                                                 />
                                                 <Switch
                                                     size="small"
-                                                    checked={!isDisabled}
-                                                    onChange={() => toggleGroupEnabled(node.key as string)}
-                                                    onClick={(e) => e.stopPropagation()}
+                                                    checked={!node.disabled}
+                                                    onChange={(v) => toggleGroupEnabled(!v, node)}
                                                     style={{ marginLeft: 4 }}
                                                 />
                                             </div>
                                         )}
+                                        
                                     </div>
                                 );
                             }}
@@ -543,9 +525,7 @@ const App = forwardRef<AppRef>((_, ref) => {
                                         const node = findNode(treeData, selectedKey);
                                         form.setFieldsValue({
                                             title: node?.title,
-                                            mockData: selectedKey.startsWith('api:')
-                                                ? JSON.stringify(mockData[selectedKey], null, 2)
-                                                : undefined,
+                                            mockData: jsonContent
                                         });
                                     }}
                                 >
@@ -566,14 +546,6 @@ const App = forwardRef<AppRef>((_, ref) => {
                                     onConfirm={() => {
                                         const node = findNode(treeData, selectedKey);
                                         setTreeData(prev => deleteNodeFromTree(prev, selectedKey));
-                                        if (selectedKey.startsWith('api:')) {
-                                            setMockData(prev => {
-                                                const newData = { ...prev };
-                                                delete newData[selectedKey];
-                                                return newData;
-                                            });
-                                        }
-                                        setSelectedKey(null);
                                         message.success(`已删除接口 "${node?.title}"`);
                                     }}
                                     okText="确定"
@@ -671,7 +643,14 @@ const App = forwardRef<AppRef>((_, ref) => {
                         </>
                     )}
 
-                    {editType === 'add-group' && (
+                    {editType === 'add-group' && (<>
+                        <Form.Item
+                            name="domain"
+                            label="生效域名"
+                            initialValue={location.hostname}
+                        >
+                            <Input placeholder='请输入生效域名' /> 
+                        </Form.Item>
                         <Form.Item
                             name="parentKey"
                             label="父级分组"
@@ -685,6 +664,7 @@ const App = forwardRef<AppRef>((_, ref) => {
                                 ))}
                             </Select>
                         </Form.Item>
+                        </>
                     )}
 
                     {(editType === 'add-api' || (editType === 'edit' && editingNode?.startsWith('api:'))) && (
@@ -729,9 +709,7 @@ const App = forwardRef<AppRef>((_, ref) => {
                 open={resetConfirmVisible}
                 onOk={() => {
                     localStorage.removeItem(STORAGE_KEY);
-                    localStorage.removeItem(MOCK_DATA_KEY);
                     setTreeData(defaultTreeData);
-                    setMockData(defaultMockData);
                     setSelectedKey(null);
                     setResetConfirmVisible(false);
                     message.success('数据已重置');
@@ -756,16 +734,6 @@ const App = forwardRef<AppRef>((_, ref) => {
                 onOk={() => {
                     if (deleteNodeKey) {
                         setTreeData(prev => deleteNodeFromTree(prev, deleteNodeKey));
-                        if (deleteNodeKey.startsWith('api:')) {
-                            setMockData(prev => {
-                                const newData = { ...prev };
-                                delete newData[deleteNodeKey];
-                                return newData;
-                            });
-                        }
-                        if (selectedKey === deleteNodeKey) {
-                            setSelectedKey(null);
-                        }
                         message.success('删除成功');
                     }
                     setDeleteConfirmVisible(false);

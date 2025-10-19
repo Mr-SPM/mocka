@@ -1,5 +1,6 @@
 
 // entrypoints/content/App.tsx
+import { storage } from '#imports'
 import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useState } from 'react';
 import {
     Button,
@@ -67,25 +68,6 @@ const defaultTreeData: ApiNode[] = [
 ];
 
 
-// 本地存储工具函数
-const storage = {
-    get: (key: string) => {
-        try {
-            const item = localStorage.getItem(key);
-            return item ? JSON.parse(item) : null;
-        } catch {
-            return null;
-        }
-    },
-    set: (key: string, value: unknown) => {
-        try {
-            localStorage.setItem(key, JSON.stringify(value));
-        } catch (error) {
-            console.error('Storage error:', error);
-        }
-    },
-};
-
 
 // 编辑表单数据类型
 interface EditFormData {
@@ -106,13 +88,17 @@ const App = forwardRef<AppRef>((_, ref) => {
     const [open, setOpen] = useState(false);
     const [selectedKey, setSelectedKey] = useState<string | null>(null);
     const [searchValue, setSearchValue] = useState('');
-    const [treeData, setTreeData] = useState<ApiNode[]>(() =>
-        storage.get(STORAGE_KEY) || defaultTreeData
-    );
-    const [mockEnabled, setMockEnabled] = useState<boolean>(() => {
-        const enabled = localStorage.getItem(MOCK_ENABLED_KEY);
-        return enabled !== 'false'; // 默认启用
-    });
+    const [treeData, setTreeData] = useState<ApiNode[]>([]);
+    const [mockEnabled, setMockEnabled] = useState<boolean>(false);
+
+    useEffect(() => {
+        storage.getItem<ApiNode[]>(STORAGE_KEY).then(value => {
+            setTreeData(value || defaultTreeData)
+        })
+            storage.getItem<boolean>(MOCK_ENABLED_KEY).then(value => {
+            setMockEnabled(value || false)
+        })
+    }, [])
 
     // 编辑状态
     const [editModalVisible, setEditModalVisible] = useState(false);
@@ -140,7 +126,7 @@ const App = forwardRef<AppRef>((_, ref) => {
 
     // 保存到本地存储
     useEffect(() => {
-        storage.set(STORAGE_KEY, treeData);
+        storage.setItem(STORAGE_KEY, treeData);
     }, [treeData]);
 
     useEffect(() => {
@@ -353,7 +339,7 @@ const App = forwardRef<AppRef>((_, ref) => {
                             onClick={() => {
                                 const newEnabled = !mockEnabled;
                                 setMockEnabled(newEnabled);
-                                localStorage.setItem(MOCK_ENABLED_KEY, newEnabled.toString());
+                                storage.setItem(MOCK_ENABLED_KEY,newEnabled);
                                 message.success(`MSW 已${newEnabled ? '启用' : '禁用'}`);
                             }}
                             style={{
@@ -647,7 +633,7 @@ const App = forwardRef<AppRef>((_, ref) => {
                         <Form.Item
                             name="domain"
                             label="生效域名"
-                            initialValue={location.hostname}
+                            initialValue={location.host}
                         >
                             <Input placeholder='请输入生效域名' /> 
                         </Form.Item>
@@ -708,7 +694,7 @@ const App = forwardRef<AppRef>((_, ref) => {
                 title="重置所有数据"
                 open={resetConfirmVisible}
                 onOk={() => {
-                    localStorage.removeItem(STORAGE_KEY);
+                    storage.removeItem(STORAGE_KEY);
                     setTreeData(defaultTreeData);
                     setSelectedKey(null);
                     setResetConfirmVisible(false);

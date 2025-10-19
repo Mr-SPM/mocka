@@ -5,9 +5,8 @@ import App, { type AppRef } from './content/App';
 
 export default defineContentScript({
   matches: ['<all_urls>'],
-  main() {
+  async main() {
     console.log('🟢 Mocka content script loaded');
-    
     // 创建 React 根容器
     const container = document.createElement('div');
     container.id = 'mocka-extension-root';

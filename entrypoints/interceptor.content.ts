@@ -27,12 +27,14 @@ export default defineContentScript({
     if (treeData?.length > 0 && enabled) {
 
       const config = buildMockConfig(treeData, enabled)
-      const fetchInterceptor = createFetchInterceptor(config)
-      const xhrInterceptor = createXHRInterceptor(config)
+      if (config) {
+        const fetchInterceptor = createFetchInterceptor(config)
+        const xhrInterceptor = createXHRInterceptor(config)
 
-      console.log('✅ Mocka interceptors installed')
-      fetchInterceptor.install()
-      xhrInterceptor.install()
+        console.log('✅ Mocka interceptors installed')
+        fetchInterceptor.install()
+        xhrInterceptor.install()
+      }
     }
   },
 })

@@ -43,6 +43,7 @@ jobs:
       - name: Zip Chrome extension
         run: |
           npm run zip
+          ls -la .output  # 确认文件路径和存在性
 
       # 创建 GitHub Release
       - name: Create GitHub Release
@@ -58,6 +59,6 @@ jobs:
             2. 解压后在浏览器打开 `chrome://extensions/`
             3. 在“开发者模式”中加载解压后的文件夹
           files: |
-            .output/mocka-${{ env.VERSION }}-chrome.zip
+            .output/mocka-${{ env.VERSION }}-chrome.zip  # 确保文件路径正确
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}  # 使用个人访问令牌（PAT）

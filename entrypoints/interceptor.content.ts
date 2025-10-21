@@ -39,7 +39,6 @@ export default defineContentScript({
   },
 })
 
-
 // ========= 工具函数模块化 =========
 function buildMockConfig(treeData: any[], enabled: boolean) {
   const mockData = treeData.reduce((acc, next) => {
@@ -74,16 +73,24 @@ function createFetchInterceptor(config: { data: Record<string, any>, enabled: bo
     install() {
       window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
         const url = typeof input === 'string' ? input : (input instanceof URL ? input.href : input.url)
-        const mockData = findMock(url)
-        if (mockData) {
-          console.log(`🎯 Mocka intercept Fetch: ${url}`)
-          await delay()
-          return new Response(JSON.stringify(mockData), {
-            status: 200,
-            headers: { 'Content-Type': 'application/json', 'X-Mocka-Intercepted': 'true' },
-          })
+
+
+        // 执行原始请求
+        const response = await originalFetch.call(window, input, init)
+
+        // 如果返回 404，并且有 mock 数据，则返回 mock 数据
+        if (response.status === 404) {
+          const mockData = findMock(url)
+          if (mockData) {
+            console.log(`🎯 Mocka intercept Fetch: ${url} (404 -> Mock)`)
+            await delay()
+            return new Response(JSON.stringify(mockData), {
+              status: 200,  // 模拟 200 成功
+              headers: { 'Content-Type': 'application/json', 'X-Mocka-Intercepted': 'true' },
+            })
+          }
         }
-        return originalFetch.call(this, input, init)
+        return response // 返回正常的响应
       }
     }
   }
@@ -137,6 +144,11 @@ function createXHRInterceptor(config: { data: Record<string, any>, enabled: bool
     }
   }
 }
+
+
+
+
+
 
 function delay() {
   return new Promise(res => setTimeout(res, Math.random() * 100 + 50))

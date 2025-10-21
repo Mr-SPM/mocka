@@ -1,0 +1,61 @@
+name: Build and Release Chrome Extension
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch: # 允许手动触发工作流
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 检出仓库代码
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 设置 Node.js 环境
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # 安装依赖
+      - name: Install dependencies
+        run: pnpm install
+
+      # 构建 Chrome 插件
+      - name: Build Chrome extension
+        run: npm run build
+
+
+      # 打包 Chrome 插件为 zip
+      - name: Zip Chrome extension
+        run: |
+          npm run zip
+          mv dist/mocka.zip release/mocka-chrome.zip
+
+
+      # 生成版本号（从 package.json 获取）
+      - name: Extract version
+        id: version
+        run: echo "VERSION=$(node -p 'require(\"./package.json\").version')" >> $GITHUB_ENV
+
+      # 创建 GitHub Release
+      - name: Create GitHub Release
+        id: create_release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ env.VERSION }}
+          name: "Extension v${{ env.VERSION }}"
+          body: |
+            🚀 自动构建的浏览器扩展  
+            ✅ Chrome 和 Firefox 两种版本已准备好：
+            1. 下载 `mocka-chrome.zip` 或 `mocka-firefox.zip`
+            2. 解压后在浏览器打开 `chrome://extensions/` 或 `about:addons`（Firefox）
+            3. 在“开发者模式”中加载解压后的文件夹
+          files: |
+            release/mocka-chrome.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -27,6 +27,8 @@ const { Title } = Typography;
 const { Search } = Input;
 const { TextArea } = Input;
 
+import './style.css'
+
 
 
 // 树节点类型定义
@@ -40,7 +42,7 @@ interface ApiNode extends DataNode {
 
 // 默认 Mock 数据
 const defaultMockData: Record<string, any> = {
- 
+
     code: 0,
     data: [
         { id: 1, name: 'Alice', email: 'alice@example.com', role: 'admin' },
@@ -50,8 +52,8 @@ const defaultMockData: Record<string, any> = {
     msg: 'success',
     timestamp: Date.now(),
 }
-        
-    
+
+
 
 // 默认树数据
 const defaultTreeData: ApiNode[] = [
@@ -95,7 +97,7 @@ const App = forwardRef<AppRef>((_, ref) => {
         storage.getItem<ApiNode[]>(STORAGE_KEY).then(value => {
             setTreeData(value || defaultTreeData)
         })
-            storage.getItem<boolean>(MOCK_ENABLED_KEY).then(value => {
+        storage.getItem<boolean>(MOCK_ENABLED_KEY).then(value => {
             setMockEnabled(value || false)
         })
     }, [])
@@ -111,16 +113,16 @@ const App = forwardRef<AppRef>((_, ref) => {
     const [form] = Form.useForm<EditFormData>();
 
     const apiMap = useMemo(() => treeData.reduce((acc, next) => {
-            if (next.children) {
-                for (const api of next.children) {
-                    acc[api.key as string] = api.mockData
-                }
+        if (next.children) {
+            for (const api of next.children) {
+                acc[api.key as string] = api.mockData
             }
-            return acc
-        }, {} as Record<string ,any>)
+        }
+        return acc
+    }, {} as Record<string, any>)
         , [treeData])
-    
-    
+
+
 
     useImperativeHandle(ref, () => ({
         toggleOpen: () => setOpen(prev => !prev),
@@ -141,12 +143,12 @@ const App = forwardRef<AppRef>((_, ref) => {
 
     // 筛选树数据
     const filteredTreeData = useMemo(() => {
-        if (!searchValue.trim()) return treeData;
+        let domainTree = treeData.filter(item => item.domain === location.host)
+        if (!searchValue.trim()) return domainTree;
 
         const filterTree = (nodes: ApiNode[]): ApiNode[] => {
             return nodes.reduce<ApiNode[]>((acc, node) => {
                 const titleMatch = node.title?.toString().toLowerCase().includes(searchValue.toLowerCase());
-
                 if (node.children) {
                     const filteredChildren = filterTree(node.children);
                     if (filteredChildren.length > 0 || titleMatch) {
@@ -163,7 +165,7 @@ const App = forwardRef<AppRef>((_, ref) => {
             }, []);
         };
 
-        return filterTree(treeData);
+        return filterTree(domainTree);
     }, [treeData, searchValue]);
     // JSON 内容
     const jsonContent = JSON.stringify(apiMap[selectedKey as string], null, 2)
@@ -258,7 +260,7 @@ const App = forwardRef<AppRef>((_, ref) => {
                 setTreeData(prev => addNodeToTree(prev, values.parentKey || null, newNode));
                 message.success('分组添加成功');
             } else if (editType === 'add-api') {
-                const apiKey = generateKey('api', (values.parentKey || '') +  (values.url || values.title));
+                const apiKey = generateKey('api', (values.parentKey || '') + (values.url || values.title));
                 const newNode: ApiNode = {
                     title: values.url || values.title,
                     key: apiKey,
@@ -266,7 +268,7 @@ const App = forwardRef<AppRef>((_, ref) => {
                 };
                 try {
                     newNode.mockData = JSON.parse(values.mockData || '{ "code": 0, "data": {}, "msg": "success" }')
-                }catch {
+                } catch {
                     newNode.mockData = { code: 0, data: {}, msg: 'success' }
                 }
                 setTreeData(prev => addNodeToTree(prev, values.parentKey || null, newNode));
@@ -278,7 +280,7 @@ const App = forwardRef<AppRef>((_, ref) => {
                 if (values.mockData && editingNode.startsWith('api:')) {
                     try {
                         const parsedData = JSON.parse(values.mockData);
-                         setTreeData(prev => updateNodeInTree(prev, editingNode, { mockData: parsedData }));
+                        setTreeData(prev => updateNodeInTree(prev, editingNode, { mockData: parsedData }));
                     } catch (error) {
                         message.error('Mock 数据格式错误');
                         return;
@@ -304,7 +306,7 @@ const App = forwardRef<AppRef>((_, ref) => {
     };
 
     // 切换分组状态
-    const toggleGroupEnabled = (value: boolean,node: ApiNode) => {
+    const toggleGroupEnabled = (value: boolean, node: ApiNode) => {
         setTreeData(prev => updateNodeInTree(prev, node.key as string, { disabled: value }));
     };
 
@@ -341,8 +343,8 @@ const App = forwardRef<AppRef>((_, ref) => {
                             onClick={() => {
                                 const newEnabled = !mockEnabled;
                                 setMockEnabled(newEnabled);
-                                storage.setItem(MOCK_ENABLED_KEY,newEnabled);
-                                message.success(`MSW 已${newEnabled ? '启用' : '禁用'}`);
+                                storage.setItem(MOCK_ENABLED_KEY, newEnabled);
+                                message.success(`MOCK已${newEnabled ? '启用' : '禁用'}`);
                             }}
                             style={{
                                 borderColor: mockEnabled ? '#52c41a' : '#ff4d4f',
@@ -450,7 +452,7 @@ const App = forwardRef<AppRef>((_, ref) => {
                                                 textDecoration: node.disabled ? 'line-through' : 'none'
                                             }}
                                         >
-                                            {node.title as string }{node.domain ? `(${node.domain})` : ''}
+                                            {node.title as string}{node.domain ? `(${node.domain})` : ''}
                                         </span>
                                         {isGroup && (
                                             <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -475,15 +477,16 @@ const App = forwardRef<AppRef>((_, ref) => {
                                                     }}
                                                     title="添加接口"
                                                 />
-                                                <Switch
-                                                    size="small"
-                                                    checked={!node.disabled}
-                                                    onChange={(v) => toggleGroupEnabled(!v, node)}
-                                                    style={{ marginLeft: 4 }}
-                                                />
+
                                             </div>
                                         )}
-                                        
+                                        <Switch
+                                            size="small"
+                                            checked={!node.disabled}
+                                            onChange={(v) => toggleGroupEnabled(!v, node)}
+                                            style={{ marginLeft: 4 }}
+                                        />
+
                                     </div>
                                 );
                             }}
@@ -637,7 +640,7 @@ const App = forwardRef<AppRef>((_, ref) => {
                             label="生效域名"
                             initialValue={location.host}
                         >
-                            <Input placeholder='请输入生效域名' /> 
+                            <Input placeholder='请输入生效域名' />
                         </Form.Item>
                         <Form.Item
                             name="parentKey"
@@ -652,7 +655,7 @@ const App = forwardRef<AppRef>((_, ref) => {
                                 ))}
                             </Select>
                         </Form.Item>
-                        </>
+                    </>
                     )}
 
                     {(editType === 'add-api' || (editType === 'edit' && editingNode?.startsWith('api:'))) && (

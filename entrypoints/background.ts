@@ -66,7 +66,9 @@ export default defineBackground(() => {
     const mockData = data.reduce((acc, next) => {
       if (next.children && !next.disabled) {
         for (const api of next.children) {
-          acc[`${next.domain}${api.title}`] = api.mockData
+          if (!api.disabled) {
+            acc[`${next.domain}${api.title}`] = api.mockData
+          }
         }
       }
       return acc

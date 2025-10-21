@@ -37,7 +37,9 @@ jobs:
       # 生成版本号
       - name: Extract version
         id: version
-        run: echo "VERSION=$(node -p 'require(\"./package.json\").version')" >> $GITHUB_ENV
+        run: |
+          VERSION=$(jq -r '.version' package.json)  # 使用 jq 提取版本号
+          echo "VERSION=${VERSION}" >> $GITHUB_ENV
 
       # 打包 Chrome 插件为 zip，输出文件在 .output 目录下
       - name: Zip Chrome extension

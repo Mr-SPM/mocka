@@ -7,11 +7,16 @@ export default defineConfig({
   manifest: {
     name: 'Mocka',
     description: 'Mock API responses for development',
-    permissions: ['activeTab', 'scripting', 'tabs', 'storage', 'webNavigation'],
-    host_permissions: ['<all_urls>'],
+    permissions: ['activeTab', 'scripting', 'tabs', 'storage', 'webNavigation', "declarativeNetRequest",
+      "declarativeNetRequestFeedback"],
+    host_permissions: [
+      '*://*/*', // 或根据需要指定更具体的域名
+      // ... 其他主机权限
+    ],
     action: {},
   },
-  publicDir: 'public'
+  publicDir: 'public',
+
 });
 
 

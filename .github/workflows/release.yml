@@ -61,6 +61,6 @@ jobs:
             2. 解压后在浏览器打开 `chrome://extensions/`
             3. 在“开发者模式”中加载解压后的文件夹
           files: |
-            .output/mocka-${{ env.VERSION }}-chrome.zip  # 确保文件路径正确
+            .output/mocka-${{ env.VERSION }}-chrome.zip  # 不要注释掉路径，确保路径正确
         env:
           GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}  # 使用个人访问令牌（PAT）
